@@ -9,11 +9,11 @@ type Downloader struct {
 }
 
 func (downloader *Downloader) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	Download(w, req)
+	downloader.Download(w, req)
 }
 
 func (downloader *Downloader) MountTo(mux *http.ServeMux) {
-	mux.Handle("/download", downloader)
+	mux.Handle("/download/", downloader)
 }
 
 func New(prefix string) *Downloader {
