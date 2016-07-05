@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"encoding/json"
+	"github.com/qor/admin"
 	"github.com/qor/roles"
 	"io/ioutil"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 type Downloader struct {
 	Prefix   string
 	FilePath string
+	Auth     admin.Auth
 }
 
 func (downloader *Downloader) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -26,6 +28,10 @@ func New(prefix string) *Downloader {
 	return &Downloader{
 		Prefix: prefix,
 	}
+}
+
+func (downloader *Downloader) SetAuth(auth admin.Auth) {
+	downloader.Auth = auth
 }
 
 func (downloader *Downloader) Put(filePath string) *Downloader {

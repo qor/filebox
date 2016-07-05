@@ -3,7 +3,9 @@ package downloader_test
 import (
 	"fmt"
 	"github.com/fatih/color"
+	"github.com/qor/admin"
 	"github.com/qor/downloader"
+	"github.com/qor/qor"
 	"github.com/qor/roles"
 	"io/ioutil"
 	"net/http"
@@ -13,11 +15,42 @@ import (
 )
 
 var Downloader *downloader.Downloader
+var Admin *admin.Admin
+var user *User
+
+type User struct {
+	Name string
+	Role string
+}
+
+func (user *User) DisplayName() string {
+	return user.Name
+}
+
+type AdminAuth struct {
+}
+
+func (AdminAuth) LoginURL(c *admin.Context) string {
+	return "/auth/login"
+}
+
+func (AdminAuth) LogoutURL(c *admin.Context) string {
+	return "/auth/logout"
+}
+
+func (AdminAuth) GetCurrentUser(c *admin.Context) qor.CurrentUser {
+	return user
+}
 
 func init() {
 	root, _ := os.Getwd()
+	user = &User{Name: "user", Role: "normal_user"}
 	os.Remove(root + "/test/downloads/a.csv.meta")
 	Downloader = downloader.New(root + "/test/downloads")
+	Downloader.SetAuth(AdminAuth{})
+	roles.Register("admin", func(req *http.Request, currentUser interface{}) bool {
+		return currentUser != nil && currentUser.(*User).Role == "admin"
+	})
 }
 
 func TestDownloader(t *testing.T) {
