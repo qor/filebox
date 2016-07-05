@@ -16,8 +16,10 @@ import (
 
 var Downloader *downloader.Downloader
 var Admin *admin.Admin
+var Server *httptest.Server
 var user *User
 
+// User definition
 type User struct {
 	Name string
 	Role string
@@ -42,22 +44,26 @@ func (AdminAuth) GetCurrentUser(c *admin.Context) qor.CurrentUser {
 	return user
 }
 
+// Init
 func init() {
 	root, _ := os.Getwd()
-	user = &User{Name: "user", Role: "normal_user"}
 	os.Remove(root + "/test/downloads/a.csv.meta")
-	Downloader = downloader.New(root + "/test/downloads")
-	Downloader.SetAuth(AdminAuth{})
+	mux := http.NewServeMux()
+	Server = httptest.NewServer(mux)
+
+	user = &User{Name: "user", Role: "normal_user"}
 	roles.Register("admin", func(req *http.Request, currentUser interface{}) bool {
 		return currentUser != nil && currentUser.(*User).Role == "admin"
 	})
+
+	Downloader = downloader.New(root + "/test/downloads")
+	Downloader.MountTo(mux)
+	Downloader.SetAuth(AdminAuth{})
 }
 
+// Test download cases
 func TestDownloader(t *testing.T) {
-	mux := http.NewServeMux()
-	server := httptest.NewServer(mux)
-	Downloader.MountTo(mux)
-	req, err := http.Get(server.URL + "/downloads/a.csv")
+	req, err := http.Get(Server.URL + "/downloads/a.csv")
 	if err != nil || req.StatusCode != 200 {
 		t.Errorf(color.RedString(fmt.Sprintf("Downloader error: can't get file")))
 	}
@@ -71,7 +77,7 @@ func TestDownloader(t *testing.T) {
 		t.Errorf(color.RedString(fmt.Sprintf("Downloader error: create meta file failure (%v)", err)))
 	}
 
-	req, err = http.Get(server.URL + "/downloads/a.csv")
+	req, err = http.Get(Server.URL + "/downloads/a.csv")
 	if err != nil || req.StatusCode != 404 {
 		t.Errorf(color.RedString(fmt.Sprintf("Downloader error: should can't download file")))
 	}
