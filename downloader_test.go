@@ -54,8 +54,8 @@ func init() {
 	roles.Register("admin", func(req *http.Request, currentUser interface{}) bool {
 		return currentUser.(*User) != nil && currentUser.(*User).Role == "admin"
 	})
-	roles.Register("user", func(req *http.Request, currentUser interface{}) bool {
-		return currentUser.(*User) == nil || (currentUser != nil && currentUser.(*User).Role == "admin")
+	roles.Register("manager", func(req *http.Request, currentUser interface{}) bool {
+		return currentUser.(*User) != nil && currentUser.(*User).Role == "manager"
 	})
 
 	Downloader = downloader.New(root + "/test/downloads")
@@ -80,6 +80,7 @@ func TestDownloads(t *testing.T) {
 	filePermissions := []filePermission{
 		filePermission{FileName: "a.csv", AllowRoles: []string{}},
 		filePermission{FileName: "b.csv", AllowRoles: []string{"admin"}},
+		filePermission{FileName: "c.csv", AllowRoles: []string{"manager", "admin"}},
 	}
 
 	testCases := []testDownloadCase{
@@ -87,8 +88,11 @@ func TestDownloads(t *testing.T) {
 		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/a.csv", ExpectStatusCode: 200, ExpectContext: "Column1,Column2\n"},
 		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/a.csv", ExpectStatusCode: 200, ExpectContext: "Column1,Column2\n"},
 		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 404, ExpectContext: ""},
-		testDownloadCase{CurrentRole: "user", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 404, ExpectContext: ""},
 		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 200, ExpectContext: "Column3,Column4\n"},
+		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 200, ExpectContext: "Column5,Column6\n"},
+		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 200, ExpectContext: "Column5,Column6\n"},
 	}
 
 	for i, f := range filePermissions {
