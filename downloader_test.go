@@ -17,7 +17,7 @@ import (
 var Downloader *downloader.Downloader
 var Admin *admin.Admin
 var Server *httptest.Server
-var user *User
+var CurrentUser *User
 
 // User definition
 type User struct {
@@ -41,19 +41,21 @@ func (AdminAuth) LogoutURL(c *admin.Context) string {
 }
 
 func (AdminAuth) GetCurrentUser(c *admin.Context) qor.CurrentUser {
-	return user
+	return CurrentUser
 }
 
 // Init
 func init() {
 	root, _ := os.Getwd()
-	os.Remove(root + "/test/downloads/a.csv.meta")
+	clearMetaFiles(root)
 	mux := http.NewServeMux()
 	Server = httptest.NewServer(mux)
-
-	user = &User{Name: "user", Role: "normal_user"}
+	CurrentUser = &User{Name: "user", Role: "normal_user"}
 	roles.Register("admin", func(req *http.Request, currentUser interface{}) bool {
-		return currentUser != nil && currentUser.(*User).Role == "admin"
+		return currentUser.(*User) != nil && currentUser.(*User).Role == "admin"
+	})
+	roles.Register("user", func(req *http.Request, currentUser interface{}) bool {
+		return currentUser.(*User) == nil || (currentUser != nil && currentUser.(*User).Role == "admin")
 	})
 
 	Downloader = downloader.New(root + "/test/downloads")
@@ -62,23 +64,70 @@ func init() {
 }
 
 // Test download cases
-func TestDownloader(t *testing.T) {
-	req, err := http.Get(Server.URL + "/downloads/a.csv")
-	if err != nil || req.StatusCode != 200 {
-		t.Errorf(color.RedString(fmt.Sprintf("Downloader error: can't get file")))
-	}
-	body, _ := ioutil.ReadAll(req.Body)
-	if string(body) != "Column1,Column2\n" {
-		t.Errorf(color.RedString(fmt.Sprintf("Downloader error: file'content is incorrect")))
+type filePermission struct {
+	FileName   string
+	AllowRoles []string
+}
+
+type testDownloadCase struct {
+	CurrentRole      string
+	DownloadURL      string
+	ExpectStatusCode int
+	ExpectContext    string
+}
+
+func TestDownloads(t *testing.T) {
+	filePermissions := []filePermission{
+		filePermission{FileName: "a.csv", AllowRoles: []string{}},
+		filePermission{FileName: "b.csv", AllowRoles: []string{"admin"}},
 	}
 
-	permission := roles.Allow(roles.Read, "admin")
-	if err := Downloader.Get("a.csv").SetPermission(permission); err != nil {
-		t.Errorf(color.RedString(fmt.Sprintf("Downloader error: create meta file failure (%v)", err)))
+	testCases := []testDownloadCase{
+		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/missing.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/a.csv", ExpectStatusCode: 200, ExpectContext: "Column1,Column2\n"},
+		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/a.csv", ExpectStatusCode: 200, ExpectContext: "Column1,Column2\n"},
+		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		testDownloadCase{CurrentRole: "user", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 200, ExpectContext: "Column3,Column4\n"},
 	}
 
-	req, err = http.Get(Server.URL + "/downloads/a.csv")
-	if err != nil || req.StatusCode != 404 {
-		t.Errorf(color.RedString(fmt.Sprintf("Downloader error: should can't download file")))
+	for i, f := range filePermissions {
+		if len(f.AllowRoles) > 0 {
+			permission := roles.Allow(roles.Read, f.AllowRoles...)
+			if err := Downloader.Get(f.FileName).SetPermission(permission); err != nil {
+				t.Errorf(color.RedString(fmt.Sprintf("Download: set file permission #(%v) failure (%v)", i+1, err)))
+			}
+		}
+	}
+
+	for i, testCase := range testCases {
+		var hasError bool
+		if testCase.CurrentRole == "" {
+			CurrentUser = nil
+		} else {
+			CurrentUser = &User{Name: "Nika", Role: testCase.CurrentRole}
+		}
+		req, err := http.Get(Server.URL + testCase.DownloadURL)
+		if err != nil || req.StatusCode != testCase.ExpectStatusCode {
+			t.Errorf(color.RedString(fmt.Sprintf("Download #(%v): status code expect %v, but get %v", i+1, testCase.ExpectStatusCode, req.StatusCode)))
+			hasError = true
+		}
+		if testCase.ExpectContext != "" {
+			body, _ := ioutil.ReadAll(req.Body)
+			if string(body) != testCase.ExpectContext {
+				t.Errorf(color.RedString(fmt.Sprintf("Download #(%v): context expect %v, but get %v", i+1, testCase.ExpectContext, string(body))))
+				hasError = true
+			}
+		}
+		if !hasError {
+			t.Errorf(color.GreenString(fmt.Sprintf("Download #(%v): Success", i+1)))
+		}
+	}
+}
+
+// Helper
+func clearMetaFiles(root string) {
+	for _, f := range []string{"a", "b", "c"} {
+		os.Remove(root + fmt.Sprintf("/test/downloads/%v.csv.meta", f))
 	}
 }
