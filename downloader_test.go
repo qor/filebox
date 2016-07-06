@@ -18,6 +18,7 @@ var Downloader *downloader.Downloader
 var Admin *admin.Admin
 var Server *httptest.Server
 var CurrentUser *User
+var Root string
 
 // User definition
 type User struct {
@@ -46,8 +47,7 @@ func (AdminAuth) GetCurrentUser(c *admin.Context) qor.CurrentUser {
 
 // Init
 func init() {
-	root, _ := os.Getwd()
-	clearMetaFiles(root)
+	Root, _ = os.Getwd()
 	mux := http.NewServeMux()
 	Server = httptest.NewServer(mux)
 	CurrentUser = &User{Name: "user", Role: "normal_user"}
@@ -58,9 +58,13 @@ func init() {
 		return currentUser.(*User) != nil && currentUser.(*User).Role == "manager"
 	})
 
-	Downloader = downloader.New(root + "/test/downloads")
+	Downloader = downloader.New(Root + "/test/downloads")
 	Downloader.MountTo(mux)
 	Downloader.SetAuth(AdminAuth{})
+}
+
+func reset() {
+	clearFiles()
 }
 
 // Test download cases
@@ -77,6 +81,7 @@ type testDownloadCase struct {
 }
 
 func TestDownloads(t *testing.T) {
+	reset()
 	filePermissions := []filePermission{
 		filePermission{FileName: "a.csv", AllowRoles: []string{}},
 		filePermission{FileName: "b.csv", AllowRoles: []string{"admin"}},
@@ -124,14 +129,35 @@ func TestDownloads(t *testing.T) {
 			}
 		}
 		if !hasError {
-			t.Errorf(color.GreenString(fmt.Sprintf("Download #(%v): Success", i+1)))
+			fmt.Printf(color.GreenString("Download #%v: Success\n", i+1))
 		}
 	}
 }
 
-// Helper
-func clearMetaFiles(root string) {
-	for _, f := range []string{"a", "b", "c"} {
-		os.Remove(root + fmt.Sprintf("/test/downloads/%v.csv.meta", f))
+// Test Put file
+func TestPutFile(t *testing.T) {
+	reset()
+	reader, _ := os.Open(Root + "/test/downloads/a.csv")
+	permission := roles.Allow(roles.Read, "admin")
+	Downloader.Put("d.csv", reader).SetPermission(permission)
+	var hasError bool
+	if _, err := os.Stat(Root + "/test/downloads/d.csv"); os.IsNotExist(err) {
+		hasError = true
+		t.Errorf(color.RedString(fmt.Sprintf("Put file: should create d.csv")))
 	}
+	if _, err := os.Stat(Root + "/test/downloads/d.csv.meta"); os.IsNotExist(err) {
+		hasError = true
+		t.Errorf(color.RedString(fmt.Sprintf("Put file: should create d.csv.meta")))
+	}
+	if !hasError {
+		fmt.Printf(color.GreenString("Put file: Success\n"))
+	}
+}
+
+// Helper
+func clearFiles() {
+	for _, f := range []string{"a", "b", "c", "d"} {
+		os.Remove(Root + fmt.Sprintf("/test/downloads/%v.csv.meta", f))
+	}
+	os.Remove(Root + "/test/downloads/d.csv")
 }

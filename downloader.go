@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"github.com/qor/admin"
 	"github.com/qor/roles"
+	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path"
 	"path/filepath"
 )
@@ -34,8 +36,12 @@ func (downloader *Downloader) SetAuth(auth admin.Auth) {
 	downloader.Auth = auth
 }
 
-func (downloader *Downloader) Put(filePath string) *Downloader {
-	return downloader
+func (downloader *Downloader) Put(filePath string, reader io.Reader) *Downloader {
+	newDownloader := downloader.Get(filePath)
+	if dst, err := os.Create(newDownloader.fullFilePath()); err == nil {
+		_, err = io.Copy(dst, reader)
+	}
+	return newDownloader
 }
 
 func (downloader *Downloader) Get(filePath string) *Downloader {
