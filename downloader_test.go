@@ -7,10 +7,12 @@ import (
 	"github.com/qor/downloader"
 	"github.com/qor/qor"
 	"github.com/qor/roles"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -86,6 +88,7 @@ func TestDownloads(t *testing.T) {
 		filePermission{FileName: "a.csv", AllowRoles: []string{}},
 		filePermission{FileName: "b.csv", AllowRoles: []string{"admin"}},
 		filePermission{FileName: "c.csv", AllowRoles: []string{"manager", "admin"}},
+		filePermission{FileName: "translations/en.csv", AllowRoles: []string{"manager", "admin"}},
 	}
 
 	testCases := []testDownloadCase{
@@ -98,6 +101,9 @@ func TestDownloads(t *testing.T) {
 		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 404, ExpectContext: ""},
 		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 200, ExpectContext: "Column5,Column6\n"},
 		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 200, ExpectContext: "Column5,Column6\n"},
+		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 200, ExpectContext: "Key,Value\n"},
+		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 200, ExpectContext: "Key,Value\n"},
 	}
 
 	for i, f := range filePermissions {
@@ -135,29 +141,83 @@ func TestDownloads(t *testing.T) {
 }
 
 // Test Put file
+type testPutFileCase struct {
+	FilePath       string
+	Context        string
+	ExpectSavePath string
+	ExpectContext  string
+}
+
 func TestPutFile(t *testing.T) {
 	reset()
-	reader, _ := os.Open(Root + "/test/downloads/a.csv")
-	permission := roles.Allow(roles.Read, "admin")
-	Downloader.Put("d.csv", reader).SetPermission(permission)
-	var hasError bool
-	if _, err := os.Stat(Root + "/test/downloads/d.csv"); os.IsNotExist(err) {
-		hasError = true
-		t.Errorf(color.RedString(fmt.Sprintf("Put file: should create d.csv")))
+	testCases := []testPutFileCase{
+		testPutFileCase{
+			FilePath:       "new1.csv",
+			Context:        "String: Hello world!",
+			ExpectSavePath: "/test/downloads/new1.csv",
+			ExpectContext:  "Hello world!",
+		},
+		testPutFileCase{
+			FilePath:       "new2.csv",
+			Context:        "File: a.csv",
+			ExpectSavePath: "/test/downloads/new2.csv",
+			ExpectContext:  "Column1,Column2\n",
+		},
+		testPutFileCase{
+			FilePath:       "jobs/translation.csv",
+			Context:        "File: a.csv",
+			ExpectSavePath: "/test/downloads/jobs/translation.csv",
+			ExpectContext:  "Column1,Column2\n",
+		},
+		testPutFileCase{
+			FilePath:       "jobs/translations/1/file.csv",
+			Context:        "File: a.csv",
+			ExpectSavePath: "/test/downloads/jobs/translations/1/file.csv",
+			ExpectContext:  "Column1,Column2\n",
+		},
 	}
-	if _, err := os.Stat(Root + "/test/downloads/d.csv.meta"); os.IsNotExist(err) {
-		hasError = true
-		t.Errorf(color.RedString(fmt.Sprintf("Put file: should create d.csv.meta")))
+	for i, testCase := range testCases {
+		var reader io.Reader
+		if strings.HasPrefix(testCase.Context, "String:") {
+			reader = strings.NewReader(strings.Replace(testCase.Context, "String: ", "", 1))
+		} else {
+			fileName := strings.Replace(testCase.Context, "File: ", "", 1)
+			reader, _ = os.Open(Root + "/test/downloads/" + fileName)
+		}
+		permission := roles.Allow(roles.Read, "admin")
+		newDownloader, err := Downloader.Put(testCase.FilePath, reader)
+		if err != nil {
+			t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: create file %v failure, get error %v", i+1, testCase.ExpectSavePath, err)))
+		}
+		newDownloader.SetPermission(permission)
+		var hasError bool
+		if _, err := os.Stat(Root + testCase.ExpectSavePath); os.IsNotExist(err) {
+			hasError = true
+			t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: should create %v", i+1, testCase.ExpectSavePath)))
+		} else {
+			context, _ := ioutil.ReadFile(Root + testCase.ExpectSavePath)
+			if string(context) != testCase.ExpectContext {
+				t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: context should be as %v, but get %v", i+1, testCase.ExpectContext, string(context))))
+			}
+		}
+		if _, err := os.Stat(Root + testCase.ExpectSavePath + ".meta"); os.IsNotExist(err) {
+			hasError = true
+			t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: should create %v.meta", i+1, testCase.ExpectSavePath)))
+		}
+		if !hasError {
+			fmt.Printf(color.GreenString("Put file #%v: Success\n", i+1))
+		}
 	}
-	if !hasError {
-		fmt.Printf(color.GreenString("Put file: Success\n"))
-	}
+	clearFiles()
 }
 
 // Helper
 func clearFiles() {
-	for _, f := range []string{"a", "b", "c", "d"} {
+	for _, f := range []string{"a", "b", "c", "new1", "new2"} {
 		os.Remove(Root + fmt.Sprintf("/test/downloads/%v.csv.meta", f))
 	}
-	os.Remove(Root + "/test/downloads/d.csv")
+	os.RemoveAll(Root + "/test/downloads/new1.csv")
+	os.RemoveAll(Root + "/test/downloads/new2.csv")
+	os.Remove(Root + "/test/downloads/translations/en.csv.meta")
+	os.RemoveAll(Root + "/test/downloads/jobs")
 }

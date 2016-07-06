@@ -36,12 +36,17 @@ func (downloader *Downloader) SetAuth(auth admin.Auth) {
 	downloader.Auth = auth
 }
 
-func (downloader *Downloader) Put(filePath string, reader io.Reader) *Downloader {
-	newDownloader := downloader.Get(filePath)
-	if dst, err := os.Create(newDownloader.fullFilePath()); err == nil {
+func (downloader *Downloader) Put(filePath string, reader io.Reader) (newDownloader *Downloader, err error) {
+	newDownloader = downloader.Get(filePath)
+	var fullFilePath = newDownloader.fullFilePath()
+	var dst *os.File
+	if _, err = os.Stat(filepath.Dir(fullFilePath)); os.IsNotExist(err) {
+		err = os.MkdirAll(filepath.Dir(fullFilePath), os.ModePerm)
+	}
+	if dst, err = os.Create(newDownloader.fullFilePath()); err == nil {
 		_, err = io.Copy(dst, reader)
 	}
-	return newDownloader
+	return newDownloader, err
 }
 
 func (downloader *Downloader) Get(filePath string) *Downloader {
