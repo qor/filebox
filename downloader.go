@@ -13,7 +13,7 @@ import (
 )
 
 type Downloader struct {
-	Prefix   string
+	Dir      string
 	FilePath string
 	Auth     admin.Auth
 }
@@ -22,20 +22,27 @@ func (downloader *Downloader) ServeHTTP(w http.ResponseWriter, req *http.Request
 	downloader.Download(w, req)
 }
 
+// New a downloader struct with download dir
+func New(dir string) *Downloader {
+	return &Downloader{Dir: dir}
+}
+
+// MountTo will mount `/downloads` to mux
 func (downloader *Downloader) MountTo(mux *http.ServeMux) {
 	mux.Handle("/downloads/", downloader)
 }
 
-func New(prefix string) *Downloader {
-	return &Downloader{
-		Prefix: prefix,
-	}
-}
-
+// Set a admin.Auth struct to Downloader, used to get current user's role
 func (downloader *Downloader) SetAuth(auth admin.Auth) {
 	downloader.Auth = auth
 }
 
+// Get will return a new Downloader with a specific file
+func (downloader *Downloader) Get(filePath string) *Downloader {
+	return &Downloader{Dir: downloader.Dir, FilePath: filePath}
+}
+
+// Put will read context from reader and save as file then return a new Downloader with this new file
 func (downloader *Downloader) Put(filePath string, reader io.Reader) (newDownloader *Downloader, err error) {
 	newDownloader = downloader.Get(filePath)
 	var fullFilePath = newDownloader.fullFilePath()
@@ -49,10 +56,7 @@ func (downloader *Downloader) Put(filePath string, reader io.Reader) (newDownloa
 	return newDownloader, err
 }
 
-func (downloader *Downloader) Get(filePath string) *Downloader {
-	return &Downloader{Prefix: downloader.Prefix, FilePath: filePath}
-}
-
+// SetPermission will set a permission to file used to control access
 func (downloader *Downloader) SetPermission(permission *roles.Permission) error {
 	jsonVal, err := json.Marshal(permission)
 	if err != nil {
@@ -63,7 +67,7 @@ func (downloader *Downloader) SetPermission(permission *roles.Permission) error 
 }
 
 func (downloader *Downloader) fullFilePath() string {
-	return path.Join(downloader.Prefix, downloader.FilePath)
+	return path.Join(downloader.Dir, downloader.FilePath)
 }
 
 func fullMetaFilePath(fullFilePath string) string {

@@ -14,7 +14,7 @@ import (
 
 func (downloader *Downloader) Download(w http.ResponseWriter, req *http.Request) {
 	filePath := strings.Replace(req.URL.Path, "/downloads", "", 1)
-	fullFilePath := path.Join(downloader.Prefix, filePath)
+	fullFilePath := path.Join(downloader.Dir, filePath)
 	if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
 		http.NotFound(w, req)
 	} else {
