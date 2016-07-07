@@ -12,6 +12,7 @@ import (
 	"strings"
 )
 
+// Download is a handler will return a specific file
 func (downloader *Downloader) Download(w http.ResponseWriter, req *http.Request) {
 	filePath := strings.Replace(req.URL.Path, "/downloads", "", 1)
 	fullFilePath := path.Join(downloader.Dir, filePath)

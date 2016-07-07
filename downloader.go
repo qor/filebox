@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 )
 
+// Downloader is a object save download folder path and a specific download file used to set permission
 type Downloader struct {
 	Dir      string
 	FilePath string
@@ -32,7 +33,7 @@ func (downloader *Downloader) MountTo(mux *http.ServeMux) {
 	mux.Handle("/downloads/", downloader)
 }
 
-// Set a admin.Auth struct to Downloader, used to get current user's role
+// SetAuth will set a admin.Auth struct to Downloader, used to get current user's role
 func (downloader *Downloader) SetAuth(auth admin.Auth) {
 	downloader.Auth = auth
 }
