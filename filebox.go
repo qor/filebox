@@ -23,6 +23,12 @@ type Filebox struct {
 type File struct {
 	FilePath string
 	Roles    []string
+	Dir      *Dir
+}
+
+type Dir struct {
+	DirPath string
+	Roles   []string
 }
 
 func (filebox *Filebox) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -45,7 +51,9 @@ func (filebox *Filebox) SetAuth(auth admin.Auth) {
 }
 
 func (filebox *Filebox) AccessFile(filePath string, roles ...string) *File {
-	return &File{FilePath: path.Join(filebox.Dir, filePath), Roles: roles}
+	file := &File{FilePath: path.Join(filebox.Dir, filePath), Roles: roles}
+	file.Dir = filebox.AccessDir(filepath.Dir(filePath), roles...)
+	return file
 }
 
 func (f *File) Read() (io.ReadSeeker, error) {
@@ -79,8 +87,7 @@ func (file *File) SetPermission(permission *roles.Permission) (err error) {
 }
 
 func (file *File) HasPermission() bool {
-	_, err := os.Stat(file.metaFilePath())
-	if !os.IsNotExist(err) {
+	if _, err := os.Stat(file.metaFilePath()); !os.IsNotExist(err) {
 		bytes, err := ioutil.ReadFile(file.metaFilePath())
 		if err != nil {
 			return false
@@ -98,7 +105,7 @@ func (file *File) HasPermission() bool {
 			return hasPermission
 		}
 	}
-	return true
+	return file.Dir.HasPermission()
 }
 
 func (file *File) metaFilePath() string {
@@ -107,12 +114,57 @@ func (file *File) metaFilePath() string {
 	return path.Join(dir, fileName+".meta")
 }
 
-func (filebox *Filebox) fullFilePath() string {
-	return path.Join(filebox.Dir, filebox.FilePath)
+func (filebox *Filebox) AccessDir(dirPath string, roles ...string) *Dir {
+	return &Dir{DirPath: path.Join(filebox.Dir, dirPath), Roles: roles}
 }
 
-func fullMetaFilePath(fullFilePath string) string {
-	fileName := filepath.Base(fullFilePath)
-	dir := filepath.Dir(fullFilePath)
-	return path.Join(dir, fileName+".meta")
+func (dir *Dir) WriteFile(fileName string, reader io.Reader) (err error) {
+	err = dir.createIfNoExist()
+	var dst *os.File
+	if dst, err = os.Create(path.Join(dir.DirPath, fileName)); err == nil {
+		_, err = io.Copy(dst, reader)
+	}
+	return err
+}
+
+func (dir *Dir) SetPermission(permission *roles.Permission) (err error) {
+	err = dir.createIfNoExist()
+	jsonVal, err := json.Marshal(permission)
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(dir.metaDirPath(), jsonVal, 0644)
+	return err
+}
+
+func (dir *Dir) HasPermission() bool {
+	if _, err := os.Stat(dir.metaDirPath()); !os.IsNotExist(err) {
+		bytes, err := ioutil.ReadFile(dir.metaDirPath())
+		if err != nil {
+			return false
+		}
+		permission := &roles.Permission{}
+		if json.Unmarshal(bytes, permission); err == nil {
+			var hasPermission bool
+			for _, role := range dir.Roles {
+				if permission.HasPermission(roles.Read, role) {
+					hasPermission = true
+					break
+				}
+			}
+			return hasPermission
+		}
+	}
+	return true
+}
+
+func (dir *Dir) createIfNoExist() (err error) {
+	if _, err = os.Stat(dir.DirPath); os.IsNotExist(err) {
+		err = os.MkdirAll(dir.DirPath, os.ModePerm)
+	}
+	return err
+}
+
+func (dir *Dir) metaDirPath() string {
+	return path.Join(dir.DirPath, ".meta")
 }

@@ -216,13 +216,34 @@ func TestPutFile(t *testing.T) {
 	clearFiles()
 }
 
+// Test Set permission to a folder and write file
+func TestDirPutFile(t *testing.T) {
+	reset()
+	dir := Filebox.AccessDir("private")
+	permission := roles.Allow(roles.Read, "admin")
+	dir.SetPermission(permission)
+	dir.WriteFile("a.csv", strings.NewReader("Hello"))
+	CurrentUser = &User{Name: "Nika", Role: ""}
+	req, err := http.Get(Server.URL + "/downloads/private/a.csv")
+	if err != nil || req.StatusCode != 404 {
+		t.Errorf(color.RedString(fmt.Sprintf("Dir: status code expect 404, but get %v", req.StatusCode)))
+	}
+	CurrentUser = &User{Name: "Nika", Role: "admin"}
+	req, err = http.Get(Server.URL + "/downloads/private/a.csv")
+	if err != nil || req.StatusCode != 200 {
+		t.Errorf(color.RedString(fmt.Sprintf("Dir: status code expect 200, but get %v", req.StatusCode)))
+	}
+	clearFiles()
+}
+
 // Helper
 func clearFiles() {
 	for _, f := range []string{"a", "b", "c", "new1", "new2"} {
 		os.Remove(Root + fmt.Sprintf("/test/filebox/%v.csv.meta", f))
 	}
-	os.RemoveAll(Root + "/test/filebox/new1.csv")
-	os.RemoveAll(Root + "/test/filebox/new2.csv")
+	os.Remove(Root + "/test/filebox/new1.csv")
+	os.Remove(Root + "/test/filebox/new2.csv")
 	os.Remove(Root + "/test/filebox/translations/en.csv.meta")
 	os.RemoveAll(Root + "/test/filebox/jobs")
+	os.RemoveAll(Root + "/test/filebox/private")
 }
