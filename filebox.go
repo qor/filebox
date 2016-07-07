@@ -2,6 +2,7 @@ package filebox
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/qor/admin"
 	"github.com/qor/roles"
 	"io"
@@ -17,6 +18,11 @@ type Filebox struct {
 	Dir      string
 	FilePath string
 	Auth     admin.Auth
+}
+
+type File struct {
+	FilePath string
+	Roles    []string
 }
 
 func (filebox *Filebox) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -38,33 +44,67 @@ func (filebox *Filebox) SetAuth(auth admin.Auth) {
 	filebox.Auth = auth
 }
 
-// Get will return a new Filebox with a specific file
-func (filebox *Filebox) Get(filePath string) *Filebox {
-	return &Filebox{Dir: filebox.Dir, FilePath: filePath}
+func (filebox *Filebox) AccessFile(filePath string, roles ...string) *File {
+	return &File{FilePath: path.Join(filebox.Dir, filePath), Roles: roles}
 }
 
-// Put will read context from reader and save as file then return a new Filebox with this new file
-func (filebox *Filebox) Put(filePath string, reader io.Reader) (newFilebox *Filebox, err error) {
-	newFilebox = filebox.Get(filePath)
-	var fullFilePath = newFilebox.fullFilePath()
-	var dst *os.File
-	if _, err = os.Stat(filepath.Dir(fullFilePath)); os.IsNotExist(err) {
-		err = os.MkdirAll(filepath.Dir(fullFilePath), os.ModePerm)
+func (file *File) Read() (string, error) {
+	if HasPermission(file.FilePath, file.Roles...) {
+		bytes, err := ioutil.ReadFile(file.FilePath)
+		return string(bytes), err
 	}
-	if dst, err = os.Create(newFilebox.fullFilePath()); err == nil {
+	return "", fmt.Errorf("Doesn't have permission to read the file")
+}
+
+func (file *File) Write(reader io.Reader) (err error) {
+	var dst *os.File
+	if _, err = os.Stat(file.FilePath); os.IsNotExist(err) {
+		err = os.MkdirAll(filepath.Dir(file.FilePath), os.ModePerm)
+	}
+	if err != nil {
+		return err
+	}
+	if dst, err = os.Create(file.FilePath); err == nil {
 		_, err = io.Copy(dst, reader)
 	}
-	return newFilebox, err
+	return err
 }
 
-// SetPermission will set a permission to file used to control access
-func (filebox *Filebox) SetPermission(permission *roles.Permission) error {
+func (file *File) SetPermission(permission *roles.Permission) (err error) {
 	jsonVal, err := json.Marshal(permission)
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(fullMetaFilePath(filebox.fullFilePath()), jsonVal, 0644)
+	err = ioutil.WriteFile(file.metaFilePath(), jsonVal, 0644)
 	return err
+}
+
+func (file *File) metaFilePath() string {
+	fileName := filepath.Base(file.FilePath)
+	dir := filepath.Dir(file.FilePath)
+	return path.Join(dir, fileName+".meta")
+}
+
+func HasPermission(fullFilePath string, currentRoles ...string) bool {
+	if _, err := os.Stat(fullMetaFilePath(fullFilePath)); !os.IsNotExist(err) {
+		bytes, err := ioutil.ReadFile(fullMetaFilePath(fullFilePath))
+		if err != nil {
+			return false
+		}
+		permission := &roles.Permission{}
+		err = json.Unmarshal(bytes, permission)
+		if err == nil {
+			var hasPermission bool
+			for _, role := range currentRoles {
+				if permission.HasPermission(roles.Read, role) {
+					hasPermission = true
+					break
+				}
+			}
+			return hasPermission
+		}
+	}
+	return true
 }
 
 func (filebox *Filebox) fullFilePath() string {

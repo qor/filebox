@@ -13,13 +13,13 @@ import (
 )
 
 // Download is a handler will return a specific file
-func (downloader *Filebox) Download(w http.ResponseWriter, req *http.Request) {
+func (filebox *Filebox) Download(w http.ResponseWriter, req *http.Request) {
 	filePath := strings.Replace(req.URL.Path, "/downloads", "", 1)
-	fullFilePath := path.Join(downloader.Dir, filePath)
+	fullFilePath := path.Join(filebox.Dir, filePath)
 	if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
 		http.NotFound(w, req)
 	} else {
-		if downloader.hasPermission(fullFilePath, w, req) {
+		if filebox.hasPermission(fullFilePath, w, req) {
 			http.ServeFile(w, req, fullFilePath)
 			return
 		}
@@ -27,7 +27,7 @@ func (downloader *Filebox) Download(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (downloader *Filebox) hasPermission(fullFilePath string, w http.ResponseWriter, req *http.Request) bool {
+func (filebox *Filebox) hasPermission(fullFilePath string, w http.ResponseWriter, req *http.Request) bool {
 	if _, err := os.Stat(fullMetaFilePath(fullFilePath)); !os.IsNotExist(err) {
 		bytes, err := ioutil.ReadFile(fullMetaFilePath(fullFilePath))
 		if err != nil {
@@ -37,7 +37,7 @@ func (downloader *Filebox) hasPermission(fullFilePath string, w http.ResponseWri
 		err = json.Unmarshal(bytes, permission)
 		if err == nil {
 			context := &admin.Context{Context: &qor.Context{Request: req, Writer: w}}
-			allRoles := roles.MatchedRoles(req, downloader.Auth.GetCurrentUser(context))
+			allRoles := roles.MatchedRoles(req, filebox.Auth.GetCurrentUser(context))
 			var hasPermission bool
 			for _, role := range allRoles {
 				if permission.HasPermission(roles.Read, role) {

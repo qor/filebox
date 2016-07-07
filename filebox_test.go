@@ -109,8 +109,9 @@ func TestDownloads(t *testing.T) {
 	for i, f := range filePermissions {
 		if len(f.AllowRoles) > 0 {
 			permission := roles.Allow(roles.Read, f.AllowRoles...)
-			if err := Filebox.Get(f.FileName).SetPermission(permission); err != nil {
-				t.Errorf(color.RedString(fmt.Sprintf("Download: set file permission #(%v) failure (%v)", i+1, err)))
+			newFile := Filebox.AccessFile(f.FileName)
+			if err := newFile.SetPermission(permission); err != nil {
+				t.Errorf(color.RedString(fmt.Sprintf("Filebox: set file permission #(%v) failure (%v)", i+1, err)))
 			}
 		}
 	}
@@ -184,12 +185,16 @@ func TestPutFile(t *testing.T) {
 			fileName := strings.Replace(testCase.Context, "File: ", "", 1)
 			reader, _ = os.Open(Root + "/test/filebox/" + fileName)
 		}
-		permission := roles.Allow(roles.Read, "admin")
-		newFilebox, err := Filebox.Put(testCase.FilePath, reader)
+		newFile := Filebox.AccessFile(testCase.FilePath)
+		err := newFile.Write(reader)
 		if err != nil {
 			t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: create file %v failure, get error %v", i+1, testCase.ExpectSavePath, err)))
 		}
-		newFilebox.SetPermission(permission)
+		permission := roles.Allow(roles.Read, "admin")
+		err = newFile.SetPermission(permission)
+		if err != nil {
+			t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: set permission to file %v failure, get error %v", i+1, testCase.ExpectSavePath, err)))
+		}
 		var hasError bool
 		if _, err := os.Stat(Root + testCase.ExpectSavePath); os.IsNotExist(err) {
 			hasError = true
