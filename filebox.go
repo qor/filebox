@@ -48,12 +48,11 @@ func (filebox *Filebox) AccessFile(filePath string, roles ...string) *File {
 	return &File{FilePath: path.Join(filebox.Dir, filePath), Roles: roles}
 }
 
-func (file *File) Read() (string, error) {
-	if HasPermission(file.FilePath, file.Roles...) {
-		bytes, err := ioutil.ReadFile(file.FilePath)
-		return string(bytes), err
+func (f *File) Read() (io.ReadSeeker, error) {
+	if f.HasPermission() {
+		return os.Open(f.FilePath)
 	}
-	return "", fmt.Errorf("Doesn't have permission to read the file")
+	return nil, fmt.Errorf("Doesn't have permission to read the file")
 }
 
 func (file *File) Write(reader io.Reader) (err error) {
@@ -79,15 +78,10 @@ func (file *File) SetPermission(permission *roles.Permission) (err error) {
 	return err
 }
 
-func (file *File) metaFilePath() string {
-	fileName := filepath.Base(file.FilePath)
-	dir := filepath.Dir(file.FilePath)
-	return path.Join(dir, fileName+".meta")
-}
-
-func HasPermission(fullFilePath string, currentRoles ...string) bool {
-	if _, err := os.Stat(fullMetaFilePath(fullFilePath)); !os.IsNotExist(err) {
-		bytes, err := ioutil.ReadFile(fullMetaFilePath(fullFilePath))
+func (file *File) HasPermission() bool {
+	_, err := os.Stat(file.metaFilePath())
+	if !os.IsNotExist(err) {
+		bytes, err := ioutil.ReadFile(file.metaFilePath())
 		if err != nil {
 			return false
 		}
@@ -95,7 +89,7 @@ func HasPermission(fullFilePath string, currentRoles ...string) bool {
 		err = json.Unmarshal(bytes, permission)
 		if err == nil {
 			var hasPermission bool
-			for _, role := range currentRoles {
+			for _, role := range file.Roles {
 				if permission.HasPermission(roles.Read, role) {
 					hasPermission = true
 					break
@@ -105,6 +99,12 @@ func HasPermission(fullFilePath string, currentRoles ...string) bool {
 		}
 	}
 	return true
+}
+
+func (file *File) metaFilePath() string {
+	fileName := filepath.Base(file.FilePath)
+	dir := filepath.Dir(file.FilePath)
+	return path.Join(dir, fileName+".meta")
 }
 
 func (filebox *Filebox) fullFilePath() string {
