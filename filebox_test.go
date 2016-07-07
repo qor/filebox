@@ -1,10 +1,10 @@
-package downloader_test
+package filebox_test
 
 import (
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/qor/admin"
-	"github.com/qor/downloader"
+	"github.com/qor/filebox"
 	"github.com/qor/qor"
 	"github.com/qor/roles"
 	"io"
@@ -16,7 +16,7 @@ import (
 	"testing"
 )
 
-var Downloader *downloader.Downloader
+var Filebox *filebox.Filebox
 var Admin *admin.Admin
 var Server *httptest.Server
 var CurrentUser *User
@@ -60,9 +60,9 @@ func init() {
 		return currentUser.(*User) != nil && currentUser.(*User).Role == "manager"
 	})
 
-	Downloader = downloader.New(Root + "/test/downloads")
-	Downloader.MountTo(mux)
-	Downloader.SetAuth(AdminAuth{})
+	Filebox = filebox.New(Root + "/test/filebox")
+	Filebox.MountTo(mux)
+	Filebox.SetAuth(AdminAuth{})
 }
 
 func reset() {
@@ -109,7 +109,7 @@ func TestDownloads(t *testing.T) {
 	for i, f := range filePermissions {
 		if len(f.AllowRoles) > 0 {
 			permission := roles.Allow(roles.Read, f.AllowRoles...)
-			if err := Downloader.Get(f.FileName).SetPermission(permission); err != nil {
+			if err := Filebox.Get(f.FileName).SetPermission(permission); err != nil {
 				t.Errorf(color.RedString(fmt.Sprintf("Download: set file permission #(%v) failure (%v)", i+1, err)))
 			}
 		}
@@ -154,25 +154,25 @@ func TestPutFile(t *testing.T) {
 		testPutFileCase{
 			FilePath:       "new1.csv",
 			Context:        "String: Hello world!",
-			ExpectSavePath: "/test/downloads/new1.csv",
+			ExpectSavePath: "/test/filebox/new1.csv",
 			ExpectContext:  "Hello world!",
 		},
 		testPutFileCase{
 			FilePath:       "new2.csv",
 			Context:        "File: a.csv",
-			ExpectSavePath: "/test/downloads/new2.csv",
+			ExpectSavePath: "/test/filebox/new2.csv",
 			ExpectContext:  "Column1,Column2\n",
 		},
 		testPutFileCase{
 			FilePath:       "jobs/translation.csv",
 			Context:        "File: a.csv",
-			ExpectSavePath: "/test/downloads/jobs/translation.csv",
+			ExpectSavePath: "/test/filebox/jobs/translation.csv",
 			ExpectContext:  "Column1,Column2\n",
 		},
 		testPutFileCase{
 			FilePath:       "jobs/translations/1/file.csv",
 			Context:        "File: a.csv",
-			ExpectSavePath: "/test/downloads/jobs/translations/1/file.csv",
+			ExpectSavePath: "/test/filebox/jobs/translations/1/file.csv",
 			ExpectContext:  "Column1,Column2\n",
 		},
 	}
@@ -182,14 +182,14 @@ func TestPutFile(t *testing.T) {
 			reader = strings.NewReader(strings.Replace(testCase.Context, "String: ", "", 1))
 		} else {
 			fileName := strings.Replace(testCase.Context, "File: ", "", 1)
-			reader, _ = os.Open(Root + "/test/downloads/" + fileName)
+			reader, _ = os.Open(Root + "/test/filebox/" + fileName)
 		}
 		permission := roles.Allow(roles.Read, "admin")
-		newDownloader, err := Downloader.Put(testCase.FilePath, reader)
+		newFilebox, err := Filebox.Put(testCase.FilePath, reader)
 		if err != nil {
 			t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: create file %v failure, get error %v", i+1, testCase.ExpectSavePath, err)))
 		}
-		newDownloader.SetPermission(permission)
+		newFilebox.SetPermission(permission)
 		var hasError bool
 		if _, err := os.Stat(Root + testCase.ExpectSavePath); os.IsNotExist(err) {
 			hasError = true
@@ -214,10 +214,10 @@ func TestPutFile(t *testing.T) {
 // Helper
 func clearFiles() {
 	for _, f := range []string{"a", "b", "c", "new1", "new2"} {
-		os.Remove(Root + fmt.Sprintf("/test/downloads/%v.csv.meta", f))
+		os.Remove(Root + fmt.Sprintf("/test/filebox/%v.csv.meta", f))
 	}
-	os.RemoveAll(Root + "/test/downloads/new1.csv")
-	os.RemoveAll(Root + "/test/downloads/new2.csv")
-	os.Remove(Root + "/test/downloads/translations/en.csv.meta")
-	os.RemoveAll(Root + "/test/downloads/jobs")
+	os.RemoveAll(Root + "/test/filebox/new1.csv")
+	os.RemoveAll(Root + "/test/filebox/new2.csv")
+	os.Remove(Root + "/test/filebox/translations/en.csv.meta")
+	os.RemoveAll(Root + "/test/filebox/jobs")
 }

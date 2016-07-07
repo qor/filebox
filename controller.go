@@ -1,4 +1,4 @@
-package downloader
+package filebox
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 )
 
 // Download is a handler will return a specific file
-func (downloader *Downloader) Download(w http.ResponseWriter, req *http.Request) {
+func (downloader *Filebox) Download(w http.ResponseWriter, req *http.Request) {
 	filePath := strings.Replace(req.URL.Path, "/downloads", "", 1)
 	fullFilePath := path.Join(downloader.Dir, filePath)
 	if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
@@ -27,7 +27,7 @@ func (downloader *Downloader) Download(w http.ResponseWriter, req *http.Request)
 	}
 }
 
-func (downloader *Downloader) hasPermission(fullFilePath string, w http.ResponseWriter, req *http.Request) bool {
+func (downloader *Filebox) hasPermission(fullFilePath string, w http.ResponseWriter, req *http.Request) bool {
 	if _, err := os.Stat(fullMetaFilePath(fullFilePath)); !os.IsNotExist(err) {
 		bytes, err := ioutil.ReadFile(fullMetaFilePath(fullFilePath))
 		if err != nil {
