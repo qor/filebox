@@ -14,13 +14,13 @@ import (
 	"strings"
 )
 
-// Filebox is a object save download folder path and a specific download file used to set permission
+// Filebox is a based object contains download folder path and admin.Auth used to get current user
 type Filebox struct {
-	Dir      string
-	FilePath string
-	Auth     admin.Auth
+	BaseDir string
+	Auth    admin.Auth
 }
 
+// File is a object to access a specific file
 type File struct {
 	FilePath string
 	Roles    []string
@@ -28,19 +28,21 @@ type File struct {
 	Filebox  *Filebox
 }
 
+// Dir is a object to access a specific directory
 type Dir struct {
 	DirPath string
 	Roles   []string
 	Filebox *Filebox
 }
 
+// ServeHTTP is a implement for http server interface
 func (filebox *Filebox) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	filebox.Download(w, req)
 }
 
-// New a filebox struct with download dir
+// New a filebox struct
 func New(dir string) *Filebox {
-	return &Filebox{Dir: dir}
+	return &Filebox{BaseDir: dir}
 }
 
 // MountTo will mount `/downloads` to mux
@@ -53,12 +55,14 @@ func (filebox *Filebox) SetAuth(auth admin.Auth) {
 	filebox.Auth = auth
 }
 
+// AccessFile will return a specific File object
 func (filebox *Filebox) AccessFile(filePath string, roles ...string) *File {
-	file := &File{FilePath: path.Join(filebox.Dir, filePath), Roles: roles, Filebox: filebox}
+	file := &File{FilePath: path.Join(filebox.BaseDir, filePath), Roles: roles, Filebox: filebox}
 	file.Dir = filebox.AccessDir(filepath.Dir(filePath), roles...)
 	return file
 }
 
+// Read will get a io reader for a specific file
 func (f *File) Read() (io.ReadSeeker, error) {
 	if f.HasPermission(roles.Read) {
 		return os.Open(f.FilePath)
@@ -66,16 +70,17 @@ func (f *File) Read() (io.ReadSeeker, error) {
 	return nil, fmt.Errorf("Doesn't have permission to read the file")
 }
 
-func (file *File) Write(reader io.Reader) (err error) {
-	if file.HasPermission(roles.Update) {
+// Write used to store reader's content to a file
+func (f *File) Write(reader io.Reader) (err error) {
+	if f.HasPermission(roles.Update) {
 		var dst *os.File
-		if _, err = os.Stat(file.FilePath); os.IsNotExist(err) {
-			err = os.MkdirAll(filepath.Dir(file.FilePath), os.ModePerm)
+		if _, err = os.Stat(f.FilePath); os.IsNotExist(err) {
+			err = os.MkdirAll(filepath.Dir(f.FilePath), os.ModePerm)
 		}
 		if err != nil {
 			return err
 		}
-		if dst, err = os.Create(file.FilePath); err == nil {
+		if dst, err = os.Create(f.FilePath); err == nil {
 			_, err = io.Copy(dst, reader)
 		}
 		return err
@@ -83,35 +88,39 @@ func (file *File) Write(reader io.Reader) (err error) {
 	return fmt.Errorf("Doesn't have permission to write the file")
 }
 
-func (file *File) SetPermission(permission *roles.Permission) (err error) {
+// SetPermission used to set a Permission to file
+func (f *File) SetPermission(permission *roles.Permission) (err error) {
 	jsonVal, err := json.Marshal(permission)
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(file.metaFilePath(), jsonVal, 0644)
+	err = ioutil.WriteFile(f.metaFilePath(), jsonVal, 0644)
 	return err
 }
 
-func (file *File) HasPermission(mode roles.PermissionMode) bool {
-	if _, err := os.Stat(file.metaFilePath()); !os.IsNotExist(err) {
-		return HasPermission(file.metaFilePath(), mode, file.Roles)
+// HasPermission used to check current user whether have permission to access file
+func (f *File) HasPermission(mode roles.PermissionMode) bool {
+	if _, err := os.Stat(f.metaFilePath()); !os.IsNotExist(err) {
+		return hasPermission(f.metaFilePath(), mode, f.Roles)
 	}
-	return file.Dir.HasPermission(mode)
+	return f.Dir.HasPermission(mode)
 }
 
-func (file *File) metaFilePath() string {
-	fileName := filepath.Base(file.FilePath)
-	dir := filepath.Dir(file.FilePath)
+func (f *File) metaFilePath() string {
+	fileName := filepath.Base(f.FilePath)
+	dir := filepath.Dir(f.FilePath)
 	return path.Join(dir, fileName+".meta")
 }
 
+// AccessDir will return a specific Dir object
 func (filebox *Filebox) AccessDir(dirPath string, roles ...string) *Dir {
-	return &Dir{DirPath: path.Join(filebox.Dir, dirPath), Roles: roles, Filebox: filebox}
+	return &Dir{DirPath: path.Join(filebox.BaseDir, dirPath), Roles: roles, Filebox: filebox}
 }
 
+// WriteFile used to create a new file in current directory
 func (dir *Dir) WriteFile(fileName string, reader io.Reader) (file *File, err error) {
 	err = dir.createIfNoExist()
-	relativeDir := strings.Replace(dir.DirPath, dir.Filebox.Dir, "", 1)
+	relativeDir := strings.Replace(dir.DirPath, dir.Filebox.BaseDir, "", 1)
 	file = dir.Filebox.AccessFile(path.Join(relativeDir, fileName), dir.Roles...)
 	if err = file.Write(reader); err == nil {
 		return file, nil
@@ -119,6 +128,7 @@ func (dir *Dir) WriteFile(fileName string, reader io.Reader) (file *File, err er
 	return nil, err
 }
 
+// SetPermission used to set a Permission to directory
 func (dir *Dir) SetPermission(permission *roles.Permission) (err error) {
 	err = dir.createIfNoExist()
 	jsonVal, err := json.Marshal(permission)
@@ -129,8 +139,9 @@ func (dir *Dir) SetPermission(permission *roles.Permission) (err error) {
 	return err
 }
 
+// HasPermission used to check current user whether have permission to access directory
 func (dir *Dir) HasPermission(mode roles.PermissionMode) bool {
-	return HasPermission(dir.metaDirPath(), mode, dir.Roles)
+	return hasPermission(dir.metaDirPath(), mode, dir.Roles)
 }
 
 func (dir *Dir) createIfNoExist() (err error) {
@@ -144,7 +155,7 @@ func (dir *Dir) metaDirPath() string {
 	return path.Join(dir.DirPath, ".meta")
 }
 
-func HasPermission(metaFilePath string, mode roles.PermissionMode, currentRoles []string) bool {
+func hasPermission(metaFilePath string, mode roles.PermissionMode, currentRoles []string) bool {
 	if _, err := os.Stat(metaFilePath); !os.IsNotExist(err) {
 		bytes, err := ioutil.ReadFile(metaFilePath)
 		if err != nil {
