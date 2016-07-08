@@ -71,8 +71,9 @@ func reset() {
 
 // Test download cases
 type filePermission struct {
-	FileName   string
-	AllowRoles []string
+	DirPermssion *roles.Permission
+	FileName     string
+	AllowRoles   []string
 }
 
 type testDownloadCase struct {
@@ -89,6 +90,18 @@ func TestDownloads(t *testing.T) {
 		filePermission{FileName: "b.csv", AllowRoles: []string{"admin"}},
 		filePermission{FileName: "c.csv", AllowRoles: []string{"manager", "admin"}},
 		filePermission{FileName: "translations/en.csv", AllowRoles: []string{"manager", "admin"}},
+		// File doesn't set permission, but Dir set
+		filePermission{
+			DirPermssion: roles.Allow(roles.Read, "admin"),
+			FileName:     "translations/users.csv",
+			AllowRoles:   []string{},
+		},
+		// File set permission and Dir set permission too, File's permission will override Dir's permission
+		filePermission{
+			DirPermssion: roles.Allow(roles.Read, "admin"),
+			FileName:     "translations/products.csv",
+			AllowRoles:   []string{"manager", "admin"},
+		},
 	}
 
 	testCases := []testDownloadCase{
@@ -104,6 +117,12 @@ func TestDownloads(t *testing.T) {
 		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 404, ExpectContext: ""},
 		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 200, ExpectContext: "Key,Value\n"},
 		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 200, ExpectContext: "Key,Value\n"},
+		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/translations/users.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/translations/users.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/translations/users.csv", ExpectStatusCode: 200, ExpectContext: "ID,Name\n"},
+		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/translations/products.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/translations/products.csv", ExpectStatusCode: 200, ExpectContext: "ID,Code\n"},
+		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/translations/products.csv", ExpectStatusCode: 200, ExpectContext: "ID,Code\n"},
 	}
 
 	for i, f := range filePermissions {
@@ -113,6 +132,10 @@ func TestDownloads(t *testing.T) {
 			if err := newFile.SetPermission(permission); err != nil {
 				t.Errorf(color.RedString(fmt.Sprintf("Filebox: set file permission #(%v) failure (%v)", i+1, err)))
 			}
+		}
+		if f.DirPermssion != nil {
+			newFile := Filebox.AccessFile(f.FileName)
+			newFile.Dir.SetPermission(f.DirPermssion)
 		}
 	}
 
@@ -244,6 +267,8 @@ func clearFiles() {
 	os.Remove(Root + "/test/filebox/new1.csv")
 	os.Remove(Root + "/test/filebox/new2.csv")
 	os.Remove(Root + "/test/filebox/translations/en.csv.meta")
+	os.Remove(Root + "/test/filebox/translations/products.csv.meta")
+	os.Remove(Root + "/test/filebox/translations/.meta")
 	os.RemoveAll(Root + "/test/filebox/jobs")
 	os.RemoveAll(Root + "/test/filebox/private")
 }
