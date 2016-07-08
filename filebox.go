@@ -94,22 +94,7 @@ func (file *File) SetPermission(permission *roles.Permission) (err error) {
 
 func (file *File) HasPermission(mode roles.PermissionMode) bool {
 	if _, err := os.Stat(file.metaFilePath()); !os.IsNotExist(err) {
-		bytes, err := ioutil.ReadFile(file.metaFilePath())
-		if err != nil {
-			return false
-		}
-		permission := &roles.Permission{}
-		err = json.Unmarshal(bytes, permission)
-		if err == nil {
-			var hasPermission bool
-			for _, role := range file.Roles {
-				if permission.HasPermission(mode, role) {
-					hasPermission = true
-					break
-				}
-			}
-			return hasPermission
-		}
+		return HasPermission(file.metaFilePath(), mode, file.Roles)
 	}
 	return file.Dir.HasPermission(mode)
 }
@@ -145,24 +130,7 @@ func (dir *Dir) SetPermission(permission *roles.Permission) (err error) {
 }
 
 func (dir *Dir) HasPermission(mode roles.PermissionMode) bool {
-	if _, err := os.Stat(dir.metaDirPath()); !os.IsNotExist(err) {
-		bytes, err := ioutil.ReadFile(dir.metaDirPath())
-		if err != nil {
-			return false
-		}
-		permission := &roles.Permission{}
-		if json.Unmarshal(bytes, permission); err == nil {
-			var hasPermission bool
-			for _, role := range dir.Roles {
-				if permission.HasPermission(mode, role) {
-					hasPermission = true
-					break
-				}
-			}
-			return hasPermission
-		}
-	}
-	return true
+	return HasPermission(dir.metaDirPath(), mode, dir.Roles)
 }
 
 func (dir *Dir) createIfNoExist() (err error) {
@@ -174,4 +142,25 @@ func (dir *Dir) createIfNoExist() (err error) {
 
 func (dir *Dir) metaDirPath() string {
 	return path.Join(dir.DirPath, ".meta")
+}
+
+func HasPermission(metaFilePath string, mode roles.PermissionMode, currentRoles []string) bool {
+	if _, err := os.Stat(metaFilePath); !os.IsNotExist(err) {
+		bytes, err := ioutil.ReadFile(metaFilePath)
+		if err != nil {
+			return false
+		}
+		permission := &roles.Permission{}
+		if json.Unmarshal(bytes, permission); err == nil {
+			var hasPermission bool
+			for _, role := range currentRoles {
+				if permission.HasPermission(mode, role) {
+					hasPermission = true
+					break
+				}
+			}
+			return hasPermission
+		}
+	}
+	return true
 }

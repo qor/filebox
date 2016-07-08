@@ -177,15 +177,15 @@ func TestPutFile(t *testing.T) {
 	reset()
 	testCases := []testPutFileCase{
 		testPutFileCase{
-			FilePath:       "new1.csv",
+			FilePath:       "new/new1.csv",
 			Context:        "String: Hello world!",
-			ExpectSavePath: "/test/filebox/new1.csv",
+			ExpectSavePath: "/test/filebox/new/new1.csv",
 			ExpectContext:  "Hello world!",
 		},
 		testPutFileCase{
-			FilePath:       "new2.csv",
+			FilePath:       "new/new2.csv",
 			Context:        "File: a.csv",
-			ExpectSavePath: "/test/filebox/new2.csv",
+			ExpectSavePath: "/test/filebox/new/new2.csv",
 			ExpectContext:  "Column1,Column2\n",
 		},
 		testPutFileCase{
@@ -344,15 +344,10 @@ func TestDirPutFile(t *testing.T) {
 
 // Helper
 func clearFiles() {
-	for _, f := range []string{"a", "b", "c", "new1", "new2"} {
-		os.Remove(Root + fmt.Sprintf("/test/filebox/%v.csv.meta", f))
+	for _, f := range []string{"a.csv", "b.csv", "c.csv", "translations/en.csv", "translations/products.csv", "translations/"} {
+		os.Remove(Root + fmt.Sprintf("/test/filebox/%v.meta", f))
 	}
-	os.Remove(Root + "/test/filebox/new1.csv")
-	os.Remove(Root + "/test/filebox/new2.csv")
-	os.Remove(Root + "/test/filebox/translations/en.csv.meta")
-	os.Remove(Root + "/test/filebox/translations/products.csv.meta")
-	os.Remove(Root + "/test/filebox/translations/.meta")
-	os.RemoveAll(Root + "/test/filebox/jobs")
-	os.RemoveAll(Root + "/test/filebox/private")
-	os.RemoveAll(Root + "/test/filebox/public")
+	for _, f := range []string{"jobs", "private", "public", "new"} {
+		os.RemoveAll(path.Join(Root, "/test/filebox", f))
+	}
 }
