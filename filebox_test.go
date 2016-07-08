@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"strings"
 	"testing"
 )
@@ -71,9 +72,9 @@ func reset() {
 
 // Test download cases
 type filePermission struct {
-	DirPermssion *roles.Permission
-	FileName     string
-	AllowRoles   []string
+	DirPermission *roles.Permission
+	FileName      string
+	AllowRoles    []string
 }
 
 type testDownloadCase struct {
@@ -92,15 +93,15 @@ func TestDownloads(t *testing.T) {
 		filePermission{FileName: "translations/en.csv", AllowRoles: []string{"manager", "admin"}},
 		// File doesn't set permission, but Dir set
 		filePermission{
-			DirPermssion: roles.Allow(roles.Read, "admin"),
-			FileName:     "translations/users.csv",
-			AllowRoles:   []string{},
+			DirPermission: roles.Allow(roles.Read, "admin"),
+			FileName:      "translations/users.csv",
+			AllowRoles:    []string{},
 		},
 		// File set permission and Dir set permission too, File's permission will override Dir's permission
 		filePermission{
-			DirPermssion: roles.Allow(roles.Read, "admin"),
-			FileName:     "translations/products.csv",
-			AllowRoles:   []string{"manager", "admin"},
+			DirPermission: roles.Allow(roles.Read, "admin"),
+			FileName:      "translations/products.csv",
+			AllowRoles:    []string{"manager", "admin"},
 		},
 	}
 
@@ -133,9 +134,9 @@ func TestDownloads(t *testing.T) {
 				t.Errorf(color.RedString(fmt.Sprintf("Filebox: set file permission #(%v) failure (%v)", i+1, err)))
 			}
 		}
-		if f.DirPermssion != nil {
+		if f.DirPermission != nil {
 			newFile := Filebox.AccessFile(f.FileName)
-			newFile.Dir.SetPermission(f.DirPermssion)
+			newFile.Dir.SetPermission(f.DirPermission)
 		}
 	}
 
@@ -240,21 +241,103 @@ func TestPutFile(t *testing.T) {
 }
 
 // Test Set permission to a folder and write file
+type testPutPermissionCase struct {
+	Dir                 string
+	DirPermission       *roles.Permission
+	CurrentRole         string
+	WriteFileName       string
+	WriteFileContent    string
+	WriteFilePermission *roles.Permission
+	ExpectHasError      bool
+}
+
 func TestDirPutFile(t *testing.T) {
 	reset()
-	dir := Filebox.AccessDir("private")
-	permission := roles.Allow(roles.Read, "admin")
-	dir.SetPermission(permission)
-	dir.WriteFile("a.csv", strings.NewReader("Hello"))
-	CurrentUser = &User{Name: "Nika", Role: ""}
-	req, err := http.Get(Server.URL + "/downloads/private/a.csv")
-	if err != nil || req.StatusCode != 404 {
-		t.Errorf(color.RedString(fmt.Sprintf("Dir: status code expect 404, but get %v", req.StatusCode)))
+	testCases := []testPutPermissionCase{
+		testPutPermissionCase{
+			Dir:                 "/public",
+			DirPermission:       nil,
+			CurrentRole:         "",
+			WriteFileName:       "a.csv",
+			WriteFileContent:    "Hello",
+			WriteFilePermission: nil,
+			ExpectHasError:      false,
+		},
+		testPutPermissionCase{
+			Dir:                 "/public",
+			DirPermission:       nil,
+			CurrentRole:         "admin",
+			WriteFileName:       "a.csv",
+			WriteFileContent:    "Hello tweak",
+			WriteFilePermission: roles.Allow(roles.Update, "admin"),
+			ExpectHasError:      false,
+		},
+		testPutPermissionCase{
+			Dir:                 "/public",
+			DirPermission:       nil,
+			CurrentRole:         "",
+			WriteFileName:       "a.csv",
+			WriteFileContent:    "Hello tweak failure",
+			WriteFilePermission: nil,
+			ExpectHasError:      true,
+		},
+		testPutPermissionCase{
+			Dir:                 "/private",
+			DirPermission:       roles.Allow(roles.Update, "admin"),
+			CurrentRole:         "admin",
+			WriteFileName:       "a.csv",
+			WriteFileContent:    "Hello",
+			WriteFilePermission: nil,
+			ExpectHasError:      false,
+		},
+		testPutPermissionCase{
+			Dir:                 "/private",
+			DirPermission:       roles.Allow(roles.Update, "admin"),
+			CurrentRole:         "",
+			WriteFileName:       "a.csv",
+			WriteFileContent:    "Hello tweak faliure",
+			WriteFilePermission: nil,
+			ExpectHasError:      true,
+		},
+		testPutPermissionCase{
+			Dir:                 "/private",
+			DirPermission:       roles.Allow(roles.Update, "admin"),
+			CurrentRole:         "admin",
+			WriteFileName:       "a.csv",
+			WriteFileContent:    "Hello tweak",
+			WriteFilePermission: nil,
+			ExpectHasError:      false,
+		},
 	}
-	CurrentUser = &User{Name: "Nika", Role: "admin"}
-	req, err = http.Get(Server.URL + "/downloads/private/a.csv")
-	if err != nil || req.StatusCode != 200 {
-		t.Errorf(color.RedString(fmt.Sprintf("Dir: status code expect 200, but get %v", req.StatusCode)))
+
+	for i, testCase := range testCases {
+		dir := Filebox.AccessDir(testCase.Dir, testCase.CurrentRole)
+		if testCase.DirPermission != nil {
+			dir.SetPermission(testCase.DirPermission)
+		}
+		file, err := dir.WriteFile(testCase.WriteFileName, strings.NewReader(testCase.WriteFileContent))
+		var hasError bool
+		if testCase.ExpectHasError && err == nil {
+			hasError = true
+			t.Errorf(color.RedString(fmt.Sprintf("Put Permission #%v: should can't update file, but be updated", i+1)))
+		}
+		if !testCase.ExpectHasError && err != nil {
+			hasError = true
+			t.Errorf(color.RedString(fmt.Sprintf("Put Permission #%v: should can update file, but got error %v", i+1, err)))
+		}
+		if testCase.WriteFilePermission != nil {
+			file.SetPermission(testCase.WriteFilePermission)
+		}
+		if !testCase.ExpectHasError {
+			context, _ := ioutil.ReadFile(path.Join(Root, "test/filebox", testCase.Dir, testCase.WriteFileName))
+			if string(context) != testCase.WriteFileContent {
+				hasError = true
+				t.Errorf(color.RedString(fmt.Sprintf("Put Permission #%v: should write context %v, but got %v", i+1, testCase.WriteFileContent, string(context))))
+			}
+		}
+		if !hasError {
+			fmt.Printf(color.GreenString("Put Permission #%v: success\n", i+1))
+		}
 	}
 	clearFiles()
 }
@@ -271,4 +354,5 @@ func clearFiles() {
 	os.Remove(Root + "/test/filebox/translations/.meta")
 	os.RemoveAll(Root + "/test/filebox/jobs")
 	os.RemoveAll(Root + "/test/filebox/private")
+	os.RemoveAll(Root + "/test/filebox/public")
 }
