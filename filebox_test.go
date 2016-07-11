@@ -148,10 +148,12 @@ func TestDownloads(t *testing.T) {
 			CurrentUser = &User{Name: "Nika", Role: testCase.CurrentRole}
 		}
 		req, err := http.Get(Server.URL + testCase.DownloadURL)
+		// Test request's return status code
 		if err != nil || req.StatusCode != testCase.ExpectStatusCode {
 			t.Errorf(color.RedString(fmt.Sprintf("Download #(%v): status code expect %v, but get %v", i+1, testCase.ExpectStatusCode, req.StatusCode)))
 			hasError = true
 		}
+		// Test request's return context
 		if testCase.ExpectContext != "" {
 			body, _ := ioutil.ReadAll(req.Body)
 			if string(body) != testCase.ExpectContext {
@@ -209,26 +211,41 @@ func TestPutFile(t *testing.T) {
 			fileName := strings.Replace(testCase.Context, "File: ", "", 1)
 			reader, _ = os.Open(Root + "/test/filebox/" + fileName)
 		}
+		// Write content to file
 		newFile := Filebox.AccessFile(testCase.FilePath)
 		err := newFile.Write(reader)
 		if err != nil {
 			t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: create file %v failure, get error %v", i+1, testCase.ExpectSavePath, err)))
 		}
+
+		// Set Permission
 		permission := roles.Allow(roles.Read, "admin")
 		err = newFile.SetPermission(permission)
 		if err != nil {
 			t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: set permission to file %v failure, get error %v", i+1, testCase.ExpectSavePath, err)))
 		}
+
 		var hasError bool
+		// Test whether have the create file
 		if _, err := os.Stat(Root + testCase.ExpectSavePath); os.IsNotExist(err) {
 			hasError = true
 			t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: should create %v", i+1, testCase.ExpectSavePath)))
 		} else {
+			// Test created file's content from read file directly
 			context, _ := ioutil.ReadFile(Root + testCase.ExpectSavePath)
 			if string(context) != testCase.ExpectContext {
 				t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: context should be as %v, but get %v", i+1, testCase.ExpectContext, string(context))))
 			}
+
+			// Test created file's content from File.Read()
+			f := Filebox.AccessFile(strings.Replace(testCase.ExpectSavePath, "/test/filebox", "", 1), "admin")
+			reader, _ := f.Read()
+			contextFromReader, _ := ioutil.ReadAll(reader)
+			if string(contextFromReader) != testCase.ExpectContext {
+				t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: context should be as %v, but get %v", i+1, testCase.ExpectContext, string(contextFromReader))))
+			}
 		}
+		// Test whether meta file was created
 		if _, err := os.Stat(Root + testCase.ExpectSavePath + ".meta"); os.IsNotExist(err) {
 			hasError = true
 			t.Errorf(color.RedString(fmt.Sprintf("Put file #%v: should create %v.meta", i+1, testCase.ExpectSavePath)))
@@ -247,7 +264,7 @@ type testPutPermissionCase struct {
 	CurrentRole         string
 	WriteFileName       string
 	WriteFileContent    string
-	WriteFilePermission *roles.Permission
+	SetPermissionToFile *roles.Permission
 	ExpectHasError      bool
 }
 
@@ -260,7 +277,7 @@ func TestDirPutFile(t *testing.T) {
 			CurrentRole:         "",
 			WriteFileName:       "a.csv",
 			WriteFileContent:    "Hello",
-			WriteFilePermission: nil,
+			SetPermissionToFile: nil,
 			ExpectHasError:      false,
 		},
 		testPutPermissionCase{
@@ -269,7 +286,7 @@ func TestDirPutFile(t *testing.T) {
 			CurrentRole:         "admin",
 			WriteFileName:       "a.csv",
 			WriteFileContent:    "Hello tweak",
-			WriteFilePermission: roles.Allow(roles.Update, "admin"),
+			SetPermissionToFile: roles.Allow(roles.Update, "admin"),
 			ExpectHasError:      false,
 		},
 		testPutPermissionCase{
@@ -278,7 +295,7 @@ func TestDirPutFile(t *testing.T) {
 			CurrentRole:         "",
 			WriteFileName:       "a.csv",
 			WriteFileContent:    "Hello tweak failure",
-			WriteFilePermission: nil,
+			SetPermissionToFile: nil,
 			ExpectHasError:      true,
 		},
 		testPutPermissionCase{
@@ -287,7 +304,7 @@ func TestDirPutFile(t *testing.T) {
 			CurrentRole:         "admin",
 			WriteFileName:       "a.csv",
 			WriteFileContent:    "Hello",
-			WriteFilePermission: nil,
+			SetPermissionToFile: nil,
 			ExpectHasError:      false,
 		},
 		testPutPermissionCase{
@@ -296,7 +313,7 @@ func TestDirPutFile(t *testing.T) {
 			CurrentRole:         "",
 			WriteFileName:       "a.csv",
 			WriteFileContent:    "Hello tweak faliure",
-			WriteFilePermission: nil,
+			SetPermissionToFile: nil,
 			ExpectHasError:      true,
 		},
 		testPutPermissionCase{
@@ -305,16 +322,18 @@ func TestDirPutFile(t *testing.T) {
 			CurrentRole:         "admin",
 			WriteFileName:       "a.csv",
 			WriteFileContent:    "Hello tweak",
-			WriteFilePermission: nil,
+			SetPermissionToFile: nil,
 			ExpectHasError:      false,
 		},
 	}
 
 	for i, testCase := range testCases {
+		// Set Dir's permission
 		dir := Filebox.AccessDir(testCase.Dir, testCase.CurrentRole)
 		if testCase.DirPermission != nil {
 			dir.SetPermission(testCase.DirPermission)
 		}
+		// Write content to file and test permission
 		file, err := dir.WriteFile(testCase.WriteFileName, strings.NewReader(testCase.WriteFileContent))
 		var hasError bool
 		if testCase.ExpectHasError && err == nil {
@@ -325,8 +344,9 @@ func TestDirPutFile(t *testing.T) {
 			hasError = true
 			t.Errorf(color.RedString(fmt.Sprintf("Put Permission #%v: should can update file, but got error %v", i+1, err)))
 		}
-		if testCase.WriteFilePermission != nil {
-			file.SetPermission(testCase.WriteFilePermission)
+		// Set New Permission for this file
+		if testCase.SetPermissionToFile != nil {
+			file.SetPermission(testCase.SetPermissionToFile)
 		}
 		if !testCase.ExpectHasError {
 			context, _ := ioutil.ReadFile(path.Join(Root, "test/filebox", testCase.Dir, testCase.WriteFileName))
