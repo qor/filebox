@@ -1,21 +1,26 @@
 # Downloader
 
-Downloader is component that used to make a local file able to be download and provide access control.
+Filebox is component that used to make a local file able to be download and provide access control.
 
-Scenario:
+You could choose filebox to satisfy below scenarios
+
+Scenario 1:
 
 * You would like to make file `~/documents/files/users.csv` able to be download via link `http://127.0.0.1/downloads/users.csv`
 * Only Admin user able to download this file
 
-Then you can use downloader to satisfy above scenario
+Scenario 2:
 
-[![GoDoc](https://godoc.org/github.com/qor/downloader?status.svg)](https://godoc.org/github.com/qor/downloader)
+* You create a folder at `~/exchanges`
+* Only Admin user could access files in this folder
+
+[![GoDoc](https://godoc.org/github.com/qor/filebox?status.svg)](https://godoc.org/github.com/qor/filebox)
 
 ## Usage
 
 ```go
 import (
-	"github.com/qor/downloader"
+	"github.com/qor/filebox"
 	"github.com/qor/roles"
 	"net/http"
 	"string"
@@ -23,20 +28,22 @@ import (
 
 func main() {
 	mux := http.NewServeMux()
-	Downloader = downloader.New("/home/qor/project/downloads")
-	Downloader.MountTo(mux)
+	Filebox = filebox.New("/home/qor/project/downloads")
+	Filebox.MountTo(mux)
 
 	// Assert folder downloads has file users.csv
 	// then you could download this file by http://127.0.0.1:7000/downloads/users.csv
 
 	// Add permission for users.csv, limit to only admin user able to access
-	permission := roles.Allow(roles.Read, "admin")
-	Downloader.Get("users.csv").SetPermission(permission)
+    permission := roles.Allow(roles.Read, "admin")
+    newFile := Filebox.AccessFile("users.csv")
+    newFile.SetPermission(permission)
 
-	// Save a io.Reader's context to a file and add permission
-	reader := strings.NewReader("blabla")
-	newDownloader, _ := Downloader.Put("new_file.csv", reader)
-	newDownloader.SetPermission(permission)
+    // Add permission for a specific directory
+    dir := Dir.AccessDir("/exchanges")
+    dir.SetPermission(permission)
+    // Create a new file and this file will have same permission setting as directory
+    dir.WriteFile("products.csv", strings.NewReader("Content"))
 }
 
 ```
