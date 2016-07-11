@@ -1,4 +1,4 @@
-# Downloader
+# Filebox
 
 Filebox is component that used to make a local file able to be download and provide access control.
 
