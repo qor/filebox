@@ -46,8 +46,9 @@ func New(dir string) *Filebox {
 }
 
 // MountTo will mount `/downloads` to mux
-func (filebox *Filebox) MountTo(mux *http.ServeMux) {
-	mux.Handle("/downloads/", filebox)
+func (filebox *Filebox) MountTo(mountTo string, mux *http.ServeMux) {
+	prefix := "/" + strings.Trim(mountTo, "/") + "/"
+	mux.Handle(prefix, filebox)
 }
 
 // SetAuth will set a admin.Auth struct to Filebox, used to get current user's role
@@ -117,7 +118,7 @@ func (filebox *Filebox) AccessDir(dirPath string, roles ...string) *Dir {
 	return &Dir{DirPath: path.Join(filebox.BaseDir, dirPath), Roles: roles, Filebox: filebox}
 }
 
-// WriteFile used to create a new file in current directory
+// WriteFile writes data to a file named by filename. If the file does not exist, WriteFile will create a new file
 func (dir *Dir) WriteFile(fileName string, reader io.Reader) (file *File, err error) {
 	err = dir.createIfNoExist()
 	relativeDir := strings.Replace(dir.DirPath, dir.Filebox.BaseDir, "", 1)

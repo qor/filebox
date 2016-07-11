@@ -29,7 +29,7 @@ import (
 func main() {
 	mux := http.NewServeMux()
 	Filebox = filebox.New("/home/qor/project/downloads")
-	Filebox.MountTo(mux)
+	Filebox.MountTo("/downloads", mux)
 
 	// Assert folder downloads has file users.csv
 	// then you could download this file by http://127.0.0.1:7000/downloads/users.csv

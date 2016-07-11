@@ -62,7 +62,7 @@ func init() {
 	})
 
 	Filebox = filebox.New(Root + "/test/filebox")
-	Filebox.MountTo(mux)
+	Filebox.MountTo("/downloads", mux)
 	Filebox.SetAuth(AdminAuth{})
 }
 
@@ -87,18 +87,18 @@ type testDownloadCase struct {
 func TestDownloads(t *testing.T) {
 	reset()
 	filePermissions := []filePermission{
-		filePermission{FileName: "a.csv", AllowRoles: []string{}},
-		filePermission{FileName: "b.csv", AllowRoles: []string{"admin"}},
-		filePermission{FileName: "c.csv", AllowRoles: []string{"manager", "admin"}},
-		filePermission{FileName: "translations/en.csv", AllowRoles: []string{"manager", "admin"}},
+		{FileName: "a.csv", AllowRoles: []string{}},
+		{FileName: "b.csv", AllowRoles: []string{"admin"}},
+		{FileName: "c.csv", AllowRoles: []string{"manager", "admin"}},
+		{FileName: "translations/en.csv", AllowRoles: []string{"manager", "admin"}},
 		// File doesn't set permission, but Dir set
-		filePermission{
+		{
 			DirPermission: roles.Allow(roles.Read, "admin"),
 			FileName:      "translations/users.csv",
 			AllowRoles:    []string{},
 		},
 		// File set permission and Dir set permission too, File's permission will override Dir's permission
-		filePermission{
+		{
 			DirPermission: roles.Allow(roles.Read, "admin"),
 			FileName:      "translations/products.csv",
 			AllowRoles:    []string{"manager", "admin"},
@@ -106,24 +106,24 @@ func TestDownloads(t *testing.T) {
 	}
 
 	testCases := []testDownloadCase{
-		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/missing.csv", ExpectStatusCode: 404, ExpectContext: ""},
-		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/a.csv", ExpectStatusCode: 200, ExpectContext: "Column1,Column2\n"},
-		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/a.csv", ExpectStatusCode: 200, ExpectContext: "Column1,Column2\n"},
-		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 404, ExpectContext: ""},
-		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 404, ExpectContext: ""},
-		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 200, ExpectContext: "Column3,Column4\n"},
-		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 404, ExpectContext: ""},
-		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 200, ExpectContext: "Column5,Column6\n"},
-		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 200, ExpectContext: "Column5,Column6\n"},
-		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 404, ExpectContext: ""},
-		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 200, ExpectContext: "Key,Value\n"},
-		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 200, ExpectContext: "Key,Value\n"},
-		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/translations/users.csv", ExpectStatusCode: 404, ExpectContext: ""},
-		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/translations/users.csv", ExpectStatusCode: 404, ExpectContext: ""},
-		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/translations/users.csv", ExpectStatusCode: 200, ExpectContext: "ID,Name\n"},
-		testDownloadCase{CurrentRole: "", DownloadURL: "/downloads/translations/products.csv", ExpectStatusCode: 404, ExpectContext: ""},
-		testDownloadCase{CurrentRole: "manager", DownloadURL: "/downloads/translations/products.csv", ExpectStatusCode: 200, ExpectContext: "ID,Code\n"},
-		testDownloadCase{CurrentRole: "admin", DownloadURL: "/downloads/translations/products.csv", ExpectStatusCode: 200, ExpectContext: "ID,Code\n"},
+		{CurrentRole: "", DownloadURL: "/downloads/missing.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		{CurrentRole: "", DownloadURL: "/downloads/a.csv", ExpectStatusCode: 200, ExpectContext: "Column1,Column2\n"},
+		{CurrentRole: "admin", DownloadURL: "/downloads/a.csv", ExpectStatusCode: 200, ExpectContext: "Column1,Column2\n"},
+		{CurrentRole: "", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		{CurrentRole: "manager", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		{CurrentRole: "admin", DownloadURL: "/downloads/b.csv", ExpectStatusCode: 200, ExpectContext: "Column3,Column4\n"},
+		{CurrentRole: "", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		{CurrentRole: "manager", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 200, ExpectContext: "Column5,Column6\n"},
+		{CurrentRole: "admin", DownloadURL: "/downloads/c.csv", ExpectStatusCode: 200, ExpectContext: "Column5,Column6\n"},
+		{CurrentRole: "", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		{CurrentRole: "manager", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 200, ExpectContext: "Key,Value\n"},
+		{CurrentRole: "admin", DownloadURL: "/downloads/translations/en.csv", ExpectStatusCode: 200, ExpectContext: "Key,Value\n"},
+		{CurrentRole: "", DownloadURL: "/downloads/translations/users.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		{CurrentRole: "manager", DownloadURL: "/downloads/translations/users.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		{CurrentRole: "admin", DownloadURL: "/downloads/translations/users.csv", ExpectStatusCode: 200, ExpectContext: "ID,Name\n"},
+		{CurrentRole: "", DownloadURL: "/downloads/translations/products.csv", ExpectStatusCode: 404, ExpectContext: ""},
+		{CurrentRole: "manager", DownloadURL: "/downloads/translations/products.csv", ExpectStatusCode: 200, ExpectContext: "ID,Code\n"},
+		{CurrentRole: "admin", DownloadURL: "/downloads/translations/products.csv", ExpectStatusCode: 200, ExpectContext: "ID,Code\n"},
 	}
 
 	for i, f := range filePermissions {
@@ -178,25 +178,25 @@ type testPutFileCase struct {
 func TestPutFile(t *testing.T) {
 	reset()
 	testCases := []testPutFileCase{
-		testPutFileCase{
+		{
 			FilePath:       "new/new1.csv",
 			Context:        "String: Hello world!",
 			ExpectSavePath: "/test/filebox/new/new1.csv",
 			ExpectContext:  "Hello world!",
 		},
-		testPutFileCase{
+		{
 			FilePath:       "new/new2.csv",
 			Context:        "File: a.csv",
 			ExpectSavePath: "/test/filebox/new/new2.csv",
 			ExpectContext:  "Column1,Column2\n",
 		},
-		testPutFileCase{
+		{
 			FilePath:       "jobs/translation.csv",
 			Context:        "File: a.csv",
 			ExpectSavePath: "/test/filebox/jobs/translation.csv",
 			ExpectContext:  "Column1,Column2\n",
 		},
-		testPutFileCase{
+		{
 			FilePath:       "jobs/translations/1/file.csv",
 			Context:        "File: a.csv",
 			ExpectSavePath: "/test/filebox/jobs/translations/1/file.csv",
@@ -271,7 +271,7 @@ type testPutPermissionCase struct {
 func TestDirPutFile(t *testing.T) {
 	reset()
 	testCases := []testPutPermissionCase{
-		testPutPermissionCase{
+		{
 			Dir:                 "/public",
 			DirPermission:       nil,
 			CurrentRole:         "",
@@ -280,7 +280,7 @@ func TestDirPutFile(t *testing.T) {
 			SetPermissionToFile: nil,
 			ExpectHasError:      false,
 		},
-		testPutPermissionCase{
+		{
 			Dir:                 "/public",
 			DirPermission:       nil,
 			CurrentRole:         "admin",
@@ -289,7 +289,7 @@ func TestDirPutFile(t *testing.T) {
 			SetPermissionToFile: roles.Allow(roles.Update, "admin"),
 			ExpectHasError:      false,
 		},
-		testPutPermissionCase{
+		{
 			Dir:                 "/public",
 			DirPermission:       nil,
 			CurrentRole:         "",
@@ -298,7 +298,7 @@ func TestDirPutFile(t *testing.T) {
 			SetPermissionToFile: nil,
 			ExpectHasError:      true,
 		},
-		testPutPermissionCase{
+		{
 			Dir:                 "/private",
 			DirPermission:       roles.Allow(roles.Update, "admin"),
 			CurrentRole:         "admin",
@@ -307,7 +307,7 @@ func TestDirPutFile(t *testing.T) {
 			SetPermissionToFile: nil,
 			ExpectHasError:      false,
 		},
-		testPutPermissionCase{
+		{
 			Dir:                 "/private",
 			DirPermission:       roles.Allow(roles.Update, "admin"),
 			CurrentRole:         "",
@@ -316,7 +316,7 @@ func TestDirPutFile(t *testing.T) {
 			SetPermissionToFile: nil,
 			ExpectHasError:      true,
 		},
-		testPutPermissionCase{
+		{
 			Dir:                 "/private",
 			DirPermission:       roles.Allow(roles.Update, "admin"),
 			CurrentRole:         "admin",
