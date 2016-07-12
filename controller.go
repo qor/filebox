@@ -5,6 +5,7 @@ import (
 	"github.com/qor/qor"
 	"github.com/qor/roles"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -16,7 +17,10 @@ func (filebox *Filebox) Download(w http.ResponseWriter, req *http.Request) {
 	allRoles := roles.MatchedRoles(req, filebox.Auth.GetCurrentUser(context))
 	file := filebox.AccessFile(filePath, allRoles...)
 	if reader, err := file.Read(); err == nil {
-		http.ServeContent(w, req, "a", time.Now(), reader)
+		fileName := filepath.Base(file.FilePath)
+		w.Header().Set("Content-Disposition", "attachment; filename="+fileName)
+		w.Header().Set("Content-Type", req.Header.Get("Content-Type"))
+		http.ServeContent(w, req, fileName, time.Now(), reader)
 		return
 	}
 	http.NotFound(w, req)
