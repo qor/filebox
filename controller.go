@@ -11,7 +11,7 @@ import (
 
 // Download is a handler will return a specific file
 func (filebox *Filebox) Download(w http.ResponseWriter, req *http.Request) {
-	filePath := strings.Replace(req.URL.Path, "/downloads", "", 1)
+	filePath := strings.Replace(req.URL.Path, filebox.prefix, "", 1)
 	context := &admin.Context{Context: &qor.Context{Request: req, Writer: w}}
 	allRoles := roles.MatchedRoles(req, filebox.Auth.GetCurrentUser(context))
 	file := filebox.AccessFile(filePath, allRoles...)

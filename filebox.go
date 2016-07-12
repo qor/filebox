@@ -18,6 +18,7 @@ import (
 type Filebox struct {
 	BaseDir string
 	Auth    admin.Auth
+	prefix  string
 }
 
 // File is a object to access a specific file
@@ -47,8 +48,8 @@ func New(dir string) *Filebox {
 
 // MountTo will mount `/downloads` to mux
 func (filebox *Filebox) MountTo(mountTo string, mux *http.ServeMux) {
-	prefix := "/" + strings.Trim(mountTo, "/") + "/"
-	mux.Handle(prefix, filebox)
+	filebox.prefix = "/" + strings.Trim(mountTo, "/")
+	mux.Handle(filebox.prefix+"/", filebox)
 }
 
 // SetAuth will set a admin.Auth struct to Filebox, used to get current user's role
