@@ -2,7 +2,6 @@ package filebox
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -70,7 +69,7 @@ func (f *File) Read() (io.ReadSeeker, error) {
 	if f.HasPermission(roles.Read) {
 		return os.Open(f.FilePath)
 	}
-	return nil, fmt.Errorf("Doesn't have permission to read the file")
+	return nil, roles.ErrPermissionDenied
 }
 
 // Write used to store reader's content to a file
@@ -88,7 +87,7 @@ func (f *File) Write(reader io.Reader) (err error) {
 		}
 		return err
 	}
-	return fmt.Errorf("Doesn't have permission to write the file")
+	return roles.ErrPermissionDenied
 }
 
 // SetPermission used to set a Permission to file
@@ -121,13 +120,12 @@ func (filebox *Filebox) AccessDir(dirPath string, roles ...string) *Dir {
 
 // WriteFile writes data to a file named by filename. If the file does not exist, WriteFile will create a new file
 func (dir *Dir) WriteFile(fileName string, reader io.Reader) (file *File, err error) {
-	err = dir.createIfNoExist()
-	relativeDir := strings.Replace(dir.DirPath, dir.Filebox.BaseDir, "", 1)
-	file = dir.Filebox.AccessFile(filepath.Join(relativeDir, fileName), dir.Roles...)
-	if err = file.Write(reader); err == nil {
-		return file, nil
+	if err = dir.createIfNoExist(); err == nil {
+		relativeDir := strings.TrimPrefix(dir.DirPath, dir.Filebox.BaseDir)
+		file = dir.Filebox.AccessFile(filepath.Join(relativeDir, fileName), dir.Roles...)
+		err = file.Write(reader)
 	}
-	return nil, err
+	return
 }
 
 // SetPermission used to set a Permission to directory

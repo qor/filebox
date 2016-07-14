@@ -24,6 +24,10 @@ func (filebox *Filebox) Download(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", req.Header.Get("Content-Type"))
 		http.ServeContent(w, req, fileName, time.Now(), reader)
 		return
+	} else if err == roles.ErrPermissionDenied && filebox.Auth != nil {
+		http.Redirect(w, req, filebox.Auth.LoginURL(context), http.StatusFound)
+		return
 	}
+
 	http.NotFound(w, req)
 }
