@@ -3,8 +3,6 @@ package filebox
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/qor/admin"
-	"github.com/qor/roles"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -12,6 +10,9 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/qor/admin"
+	"github.com/qor/roles"
 )
 
 // Filebox is a based object contains download folder path and admin.Auth used to get current user
@@ -46,7 +47,7 @@ func New(dir string) *Filebox {
 	return &Filebox{BaseDir: dir}
 }
 
-// MountTo will mount `/downloads` to mux
+// MountTo will mount to mux to route `mountto`
 func (filebox *Filebox) MountTo(mountTo string, mux *http.ServeMux) {
 	filebox.prefix = "/" + strings.Trim(mountTo, "/")
 	mux.Handle(filebox.prefix+"/", filebox)
@@ -79,11 +80,11 @@ func (f *File) Write(reader io.Reader) (err error) {
 		if _, err = os.Stat(f.FilePath); os.IsNotExist(err) {
 			err = os.MkdirAll(filepath.Dir(f.FilePath), os.ModePerm)
 		}
-		if err != nil {
-			return err
-		}
-		if dst, err = os.Create(f.FilePath); err == nil {
-			_, err = io.Copy(dst, reader)
+
+		if err == nil {
+			if dst, err = os.Create(f.FilePath); err == nil {
+				_, err = io.Copy(dst, reader)
+			}
 		}
 		return err
 	}
@@ -93,10 +94,9 @@ func (f *File) Write(reader io.Reader) (err error) {
 // SetPermission used to set a Permission to file
 func (f *File) SetPermission(permission *roles.Permission) (err error) {
 	jsonVal, err := json.Marshal(permission)
-	if err != nil {
-		return err
+	if err == nil {
+		err = ioutil.WriteFile(f.metaFilePath(), jsonVal, 0644)
 	}
-	err = ioutil.WriteFile(f.metaFilePath(), jsonVal, 0644)
 	return err
 }
 
@@ -111,19 +111,19 @@ func (f *File) HasPermission(mode roles.PermissionMode) bool {
 func (f *File) metaFilePath() string {
 	fileName := filepath.Base(f.FilePath)
 	dir := filepath.Dir(f.FilePath)
-	return path.Join(dir, fileName+".meta")
+	return filepath.Join(dir, fileName+".meta")
 }
 
 // AccessDir will return a specific Dir object
 func (filebox *Filebox) AccessDir(dirPath string, roles ...string) *Dir {
-	return &Dir{DirPath: path.Join(filebox.BaseDir, dirPath), Roles: roles, Filebox: filebox}
+	return &Dir{DirPath: filepath.Join(filebox.BaseDir, dirPath), Roles: roles, Filebox: filebox}
 }
 
 // WriteFile writes data to a file named by filename. If the file does not exist, WriteFile will create a new file
 func (dir *Dir) WriteFile(fileName string, reader io.Reader) (file *File, err error) {
 	err = dir.createIfNoExist()
 	relativeDir := strings.Replace(dir.DirPath, dir.Filebox.BaseDir, "", 1)
-	file = dir.Filebox.AccessFile(path.Join(relativeDir, fileName), dir.Roles...)
+	file = dir.Filebox.AccessFile(filepath.Join(relativeDir, fileName), dir.Roles...)
 	if err = file.Write(reader); err == nil {
 		return file, nil
 	}
@@ -134,10 +134,9 @@ func (dir *Dir) WriteFile(fileName string, reader io.Reader) (file *File, err er
 func (dir *Dir) SetPermission(permission *roles.Permission) (err error) {
 	err = dir.createIfNoExist()
 	jsonVal, err := json.Marshal(permission)
-	if err != nil {
-		return err
+	if err == nil {
+		err = ioutil.WriteFile(dir.metaDirPath(), jsonVal, 0644)
 	}
-	err = ioutil.WriteFile(dir.metaDirPath(), jsonVal, 0644)
 	return err
 }
 
@@ -159,21 +158,17 @@ func (dir *Dir) metaDirPath() string {
 
 func hasPermission(metaFilePath string, mode roles.PermissionMode, currentRoles []string) bool {
 	if _, err := os.Stat(metaFilePath); !os.IsNotExist(err) {
-		bytes, err := ioutil.ReadFile(metaFilePath)
-		if err != nil {
-			return false
-		}
-		permission := &roles.Permission{}
-		if json.Unmarshal(bytes, permission); err == nil {
-			var hasPermission bool
-			for _, role := range currentRoles {
-				if permission.HasPermission(mode, role) {
-					hasPermission = true
-					break
+		if bytes, err := ioutil.ReadFile(metaFilePath); err == nil {
+			permission := &roles.Permission{}
+			if json.Unmarshal(bytes, permission); err == nil {
+				for _, role := range currentRoles {
+					if permission.HasPermission(mode, role) {
+						return true
+					}
 				}
 			}
-			return hasPermission
 		}
+		return false
 	}
 	return true
 }

@@ -1,8 +1,8 @@
 # Filebox
 
-Filebox is component that used to make a local file able to be download and provide access control.
+Filebox could be used to provide access permission control for files, directories
 
-You could choose filebox to satisfy below scenarios
+You could choose filebox to satisfy below scenarios:
 
 Scenario 1:
 
@@ -28,24 +28,29 @@ import (
 
 func main() {
 	mux := http.NewServeMux()
-	Filebox = filebox.New("/home/qor/project/downloads")
+
+	// Mount filebox into `/downloads`
+	Filebox := filebox.New("/home/qor/project/downloads")
 	Filebox.MountTo("/downloads", mux)
 
 	// Assert folder downloads has file users.csv
 	// then you could download this file by http://127.0.0.1:7000/downloads/users.csv
 
 	// Add permission for users.csv, limit to only admin user able to access
-    permission := roles.Allow(roles.Read, "admin")
-    newFile := Filebox.AccessFile("users.csv")
-    newFile.SetPermission(permission)
+	permission := roles.Allow(roles.Read, "admin")
+	userFile := Filebox.AccessFile("users.csv")
+	userFile.SetPermission(permission)
+	// read content from file `users.csv`
+	fileContentReader, err := userFile.Read()
+	// write content for file `users.csv`
+	userFile.Write(fileContentReader)
 
-    // Add permission for a specific directory
-    dir := Dir.AccessDir("/exchanges")
-    dir.SetPermission(permission)
-    // Create a new file and this file will have same permission setting as directory
-    dir.WriteFile("products.csv", strings.NewReader("Content"))
+	// Add permission for a specific directory
+	exchangesDir := Dir.AccessDir("/exchanges")
+	exchangesDir.SetPermission(permission)
+	// Create a new file and it will use directory's permission if it hasn't define its own
+	exchangesDir.WriteFile("products.csv", strings.NewReader("Content"))
 }
-
 ```
 
 ## License
