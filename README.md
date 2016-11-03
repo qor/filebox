@@ -16,6 +16,10 @@ Scenario 2:
 
 [![GoDoc](https://godoc.org/github.com/qor/filebox?status.svg)](https://godoc.org/github.com/qor/filebox)
 
+## Documentation
+
+<https://doc.getqor.com/plugins/filebox.html>
+
 ## Usage
 
 ```go
