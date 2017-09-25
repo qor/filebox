@@ -2,19 +2,20 @@ package filebox_test
 
 import (
 	"fmt"
-	"github.com/fatih/color"
-	"github.com/qor/admin"
-	"github.com/qor/filebox"
-	"github.com/qor/qor"
-	"github.com/qor/roles"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/fatih/color"
+	"github.com/qor/admin"
+	"github.com/qor/filebox"
+	"github.com/qor/qor"
+	"github.com/qor/roles"
 )
 
 var Filebox *filebox.Filebox
@@ -349,7 +350,7 @@ func TestDirPutFile(t *testing.T) {
 			file.SetPermission(testCase.SetPermissionToFile)
 		}
 		if !testCase.ExpectHasError {
-			context, _ := ioutil.ReadFile(path.Join(Root, "test/filebox", testCase.Dir, testCase.WriteFileName))
+			context, _ := ioutil.ReadFile(filepath.Join(Root, "test/filebox", testCase.Dir, testCase.WriteFileName))
 			if string(context) != testCase.WriteFileContent {
 				hasError = true
 				t.Errorf(color.RedString(fmt.Sprintf("Put Permission #%v: should write context %v, but got %v", i+1, testCase.WriteFileContent, string(context))))
@@ -368,6 +369,6 @@ func clearFiles() {
 		os.Remove(Root + fmt.Sprintf("/test/filebox/%v.meta", f))
 	}
 	for _, f := range []string{"jobs", "private", "public", "new"} {
-		os.RemoveAll(path.Join(Root, "/test/filebox", f))
+		os.RemoveAll(filepath.Join(Root, "/test/filebox", f))
 	}
 }
