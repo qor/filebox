@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -59,7 +58,7 @@ func (filebox *Filebox) SetAuth(auth admin.Auth) {
 
 // AccessFile will return a specific File object
 func (filebox *Filebox) AccessFile(filePath string, roles ...string) *File {
-	file := &File{FilePath: path.Join(filebox.BaseDir, filePath), Roles: roles, Filebox: filebox}
+	file := &File{FilePath: filepath.Join(filebox.BaseDir, filePath), Roles: roles, Filebox: filebox}
 	file.Dir = filebox.AccessDir(filepath.Dir(filePath), roles...)
 	return file
 }
@@ -151,7 +150,7 @@ func (dir *Dir) createIfNoExist() (err error) {
 }
 
 func (dir *Dir) metaDirPath() string {
-	return path.Join(dir.DirPath, ".meta")
+	return filepath.Join(dir.DirPath, ".meta")
 }
 
 func hasPermission(metaFilePath string, mode roles.PermissionMode, currentRoles []string) bool {
